@@ -32,6 +32,10 @@ function makeLDA(engine, {maxStates=50000}={}){
  }
  function shortest(l){const g=graph(l);return g?distances(g.edges.map(es=>es.map(e=>e.j)),g.goals)[0]:Infinity}
  function analyze(l){
+  // Lower-priority rules with identical condition and effect can never win.
+  const originalLaws=l.laws||[];
+  const activeIndices=originalLaws.map((_,i)=>i).filter(i=>!originalLaws.some((r,j)=>j!==i&&r.when===originalLaws[i].when&&r.effect===originalLaws[i].effect&&r.priority>originalLaws[i].priority));
+  l={...l,laws:activeIndices.map(i=>originalLaws[i])};
   const g=graph(l);if(!g)return {status:'invalid-start'};
   const rawD=distances(g.edges.map(es=>es.map(e=>e.j)),g.goals),length=rawD[0];
   if(!Number.isFinite(length))return {status:'unsolvable'};
@@ -61,7 +65,7 @@ function makeLDA(engine, {maxStates=50000}={}){
   const required=(l.allow||[]).filter(k=>!Number.isFinite(shortest({...l,allow:l.allow.filter(x=>x!==k)})));
   const lawEffects=(l.laws||[]).map((r,i)=>{
    const n=shortest({...l,laws:l.laws.filter((_,j)=>i!==j)});
-   return {index:i,without:Number.isFinite(n)?n:null,kind:!Number.isFinite(n)?'essential':n<length?'constraint':n>length?'shortcut':'unchanged'};
+   return {index:activeIndices[i],without:Number.isFinite(n)?n:null,kind:!Number.isFinite(n)?'essential':n<length?'constraint':n>length?'shortcut':'unchanged'};
   });
   const effective=lawEffects.filter(r=>r.kind!=='unchanged').length;
   const deadFraction=d[start]?risk[start]/d[start]:0;
@@ -73,7 +77,7 @@ function makeLDA(engine, {maxStates=50000}={}){
    critical:100*clamp(d[start]/10)
   };
   const score=0.10*axes.operation+0.30*axes.decision+0.25*axes.rules+0.20*axes.risk+0.15*axes.critical;
-  return {status:'ok',score:+score.toFixed(2),axes:Object.fromEntries(Object.entries(axes).map(([k,v])=>[k,+v.toFixed(2)])),length,macroSteps:d[start],decisionBits:+info[start].toFixed(3),deadChoiceFraction:+deadFraction.toFixed(3),states:g.states.length,macroStates:edges.length,required,lawEffects};
+  return {status:'ok',score:+score.toFixed(2),axes:Object.fromEntries(Object.entries(axes).map(([k,v])=>[k,+v.toFixed(2)])),length,macroSteps:d[start],decisionBits:+info[start].toFixed(3),deadChoiceFraction:+deadFraction.toFixed(3),states:g.states.length,macroStates:edges.length,required,lawEffects,ignoredRules:originalLaws.length-activeIndices.length};
  }
  // Never assume that a lower budget always increases the score.
  // Re-evaluate each budget, retain requested core mechanisms and match a target.
@@ -84,7 +88,7 @@ function makeLDA(engine, {maxStates=50000}={}){
   for(let budget=0;budget<=8;budget++){
    const level={...l,budget},m=analyze(level);
    if(m.status!=='ok')continue;
-   if(preserveRequired&&(!original.required.every(k=>m.required.includes(k))||!original.lawEffects.filter(x=>x.kind==='essential').every(x=>m.lawEffects[x.index]?.kind==='essential')))continue;
+   if(preserveRequired&&(!original.required.every(k=>m.required.includes(k))||!original.lawEffects.filter(x=>x.kind==='essential').every(x=>m.lawEffects.find(e=>e.index===x.index)?.kind==='essential')))continue;
    options.push({budget,score:m.score,error:+Math.abs(target-m.score).toFixed(2)});
   }
   options.sort((a,b)=>a.error-b.error||Math.abs(a.budget-l.budget)-Math.abs(b.budget-l.budget)||a.budget-b.budget);
