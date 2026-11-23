@@ -94,11 +94,11 @@ function grammarAnalyze(l,kind){
  const mechanisms=({'phase-gate':['相位穿透','实体恢复'],'frozen-gate':['条件法则','时间冻结'],'gravity-shaft':['全局重力反转','垂直通道'],'ghost-reversal':['虚体触发重力反转','实体恢复'],'switch-phase':['箱体压板','门控','时间冻结','相位穿透']})[kind];
  return {steps,required,lawCount:(l.laws||[]).length,traps,paths,states:states.length,pushes,rewrites,mechanisms,grammar:kind};
 }
-function generateGrammarPuzzle(seed,limit=48,targetRule=null){
- if(!Number.isInteger(seed)||!Number.isInteger(limit)||limit<1||limit>500||targetRule!==null&&!['g','p','f'].includes(targetRule))throw Error('invalid grammar search settings');
+function generateGrammarPuzzle(seed,limit=48,targetRule=null,targetSteps=null){
+ if(!Number.isInteger(seed)||!Number.isInteger(limit)||limit<1||limit>500||targetRule!==null&&!['g','p','f'].includes(targetRule)||targetSteps!==null&&(!Number.isInteger(targetSteps)||targetSteps<1||targetSteps>50))throw Error('invalid grammar search settings');
  const r=rng(seed),pool=[],seen=new Set();
  for(let i=0;i<limit;i++){const kind=GRAMMAR_FAMILIES[(i+(seed>>>0)%GRAMMAR_FAMILIES.length)%GRAMMAR_FAMILIES.length],variant=(r()*4294967296)>>>0,c=grammarBuild(kind,variant),m=grammarAnalyze(c.level,kind);if(!m||targetRule&&!m.required.includes(targetRule))continue;const sig=c.level.map.join('')+'|'+c.level.allow.join('')+'|'+JSON.stringify(c.level.laws);if(seen.has(sig))continue;seen.add(sig);pool.push({...c.level,name:'语法谜题 · '+kind,desc:'组合式机制语法生成；核心法则和关键机关均通过消融验证。',metrics:{...m,seed,evaluations:i+1}})}
- if(!pool.length)return null;const available=GRAMMAR_FAMILIES.filter(kind=>pool.some(c=>c.metrics.grammar===kind));const family=available[Math.floor(r()*available.length)],choices=pool.filter(c=>c.metrics.grammar===family),chosen=choices[Math.floor(r()*choices.length)];chosen.metrics.validCandidates=pool.length;chosen.metrics.validFamilies=available.length;return chosen;
+ if(!pool.length)return null;let eligible=pool;if(targetRule&&eligible.some(c=>c.metrics.required.length===1))eligible=eligible.filter(c=>c.metrics.required.length===1);if(targetSteps!==null){eligible.sort((a,b)=>Math.abs(a.metrics.steps-targetSteps)-Math.abs(b.metrics.steps-targetSteps)||b.metrics.states-a.metrics.states);const gap=Math.abs(eligible[0].metrics.steps-targetSteps);eligible=eligible.filter(c=>Math.abs(c.metrics.steps-targetSteps)===gap)}const available=GRAMMAR_FAMILIES.filter(kind=>eligible.some(c=>c.metrics.grammar===kind));const family=available[Math.floor(r()*available.length)],choices=eligible.filter(c=>c.metrics.grammar===family),chosen=choices[Math.floor(r()*choices.length)];chosen.metrics.validCandidates=pool.length;chosen.metrics.validFamilies=available.length;return chosen;
 }
 function generateUI(){let seed=(Math.random()*4294967296)>>>0;let l=generateGrammarPuzzle(seed,64);if(!l){document.getElementById('msg').textContent='本次语法搜索未找到通过消融验证的谜题，请重试。';return}L.push(l);let sel=document.getElementById('levels');sel.add(new Option(l.name,L.length-1));i=L.length-1;reset()}
 
@@ -109,7 +109,7 @@ const mastery=(p,k)=>p[k].a/(p[k].a+p[k].b);
 function requiredRules(l){return l.allow.filter(k=>{let v={...l,allow:l.allow.filter(t=>t!==k)};return solve(v,initial(v))===null})}
 function updateProfile(p,l,t){let optimal=solve(l,initial(l));if(!optimal||!t.won)return p;let quality=Math.min(1,optimal.length/Math.max(1,t.moves+t.undos+2*t.hints+3*t.resets));for(let k of requiredRules(l)){p[k].a+=quality;p[k].b+=1-quality}p.n++;return p}
 function target(p){return ['g','p','f'].sort((a,b)=>mastery(p,a)-mastery(p,b))[0]}
-function recommend(p,seed){let k=target(p),m=mastery(p,k),candidates=[];for(let j=0;j<4;j++){let l=generateGrammarPuzzle((seed+j)>>>0,48,k);if(l)candidates.push(l)}if(candidates.length){let wanted=8+Math.round(4*m);candidates.sort((a,b)=>a.metrics.required.length-b.metrics.required.length||Math.abs(a.metrics.steps-wanted)-Math.abs(b.metrics.steps-wanted)||b.metrics.states-a.metrics.states);return {...candidates[0],name:'专项训练 · '+({g:'重力',p:'物质',f:'时间'}[k])+' / '+candidates[0].metrics.grammar}}return {...L[['g','p','f'].indexOf(k)],name:'专项训练 · '+({g:'重力',p:'物质',f:'时间'}[k])}}
+function recommend(p,seed){let k=target(p),m=mastery(p,k),wanted=8+Math.round(4*m),l=generateGrammarPuzzle(seed,64,k,wanted);if(l)return {...l,name:'专项训练 · '+({g:'重力',p:'物质',f:'时间'}[k])+' / '+l.metrics.grammar};return {...L[['g','p','f'].indexOf(k)],name:'专项训练 · '+({g:'重力',p:'物质',f:'时间'}[k])}}
 function persist(){try{localStorage.setItem('lawless05',JSON.stringify(profile))}catch(e){}}
 function clearProfile(){profile=fresh();persist();draw()}
 function adaptiveUI(){let l=recommend(profile,(Math.random()*4294967296)>>>0);L.push(l);document.getElementById('levels').add(new Option(l.name,L.length-1));i=L.length-1;reset()}
