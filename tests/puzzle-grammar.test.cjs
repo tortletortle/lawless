@@ -90,9 +90,10 @@ for (const seed of [0, 1, 999, 123456, 0xffffffff]) {
   );
 }
 for (const rule of ['g', 'p', 'f']) {
-  const level = app.generateGrammarPuzzle(20261123, 64, rule);
+  const level = app.generateGrammarPuzzle(20261123, 64, rule, 8);
   assert.ok(level);
   assert.ok(level.metrics.required.includes(rule));
+  assert.ok(Math.abs(level.metrics.steps - 8) <= 1, 'target-step selection should choose the nearest available path length');
   const profile = {
     g: { a: 10, b: 2 },
     p: { a: 10, b: 2 },
