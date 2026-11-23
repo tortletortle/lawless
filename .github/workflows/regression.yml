@@ -1,0 +1,27 @@
+name: Puzzle regression
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  node-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run regression suite
+        run: |
+          set -e
+          node tests/campaign.cjs
+          node tests/difficulty.test.cjs
+          node tests/difficulty-control.test.cjs
+          node tests/difficulty-generator.test.cjs
+          node tests/puzzle-designer.test.cjs
+          node tests/puzzle-adaptive.test.cjs
+          node tests/puzzle-map-elites.test.cjs
+          node tests/puzzle-grammar.test.cjs
