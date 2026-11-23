@@ -77,7 +77,7 @@ function grammarBuild(kind,seed){
  else if(kind==='frozen-gate'){for(let y=1;y<=4;y++)put(wall,y,'P');put(startX,4,'S');put(goalX,4,'G');budget=1;allow=['f'];laws=[{when:'frozen',effect:'phase',value:true,priority:1}]}
  else if(kind==='gravity-shaft'){for(let y=2;y<=4;y++)put(wall,y,'#');put(startX,4,'S');put(goalX,4,'G');budget=2;allow=['g']}
  else if(kind==='ghost-reversal'){for(let y=2;y<=4;y++)put(wall,y,'#');put(startX,4,'S');put(goalX,4,'G');budget=2;allow=['p'];solidGoal=true;laws=[{when:'ghost',effect:'reverse',value:true,priority:1}]}
- else if(kind==='switch-phase'){const tx=3+(seed%4),gx=Math.min(8,tx+3+((seed>>>5)%Math.max(1,6-tx)));for(let x=tx;x<=8;x++)put(x,2,'#');for(let x=tx+1;x<=8;x++)put(x,4,'#');put(1,4,'S');put(2,4,'B');put(tx,4,'T');put(tx,3,'H');put(tx+1,3,'P');put(gx,3,'G');budget=2;allow=['f','p']}
+ else if(kind==='switch-phase'){const boxX=2+(seed&1),tx=boxX+1+((seed>>>1)%(6-boxX)),gx=tx+2+((seed>>>5)%(7-tx));for(let x=tx;x<=8;x++)put(x,2,'#');for(let x=tx+1;x<=8;x++)put(x,4,'#');put(1,4,'S');put(boxX,4,'B');put(tx,4,'T');put(tx,3,'H');put(tx+1,3,'P');put(gx,3,'G');budget=2;allow=['f','p']}
  else throw Error('unknown grammar production');
  return {kind,level:{name:'语法谜题',desc:'组合式机制语法生成。',map:map.map(r=>r.join('')),budget,allow,solidGoal,laws}};
 }
@@ -90,7 +90,7 @@ function grammarAnalyze(l,kind){
  const lawRequired=(l.laws||[]).every((_,i)=>{const v={...l,laws:l.laws.filter((_,j)=>j!==i)};return solve(v,initial(v))===null});if(!lawRequired)return null;
  if(kind==='switch-phase')for(const symbol of ['B','T']){const v={...l,map:l.map.map(row=>row.replace(symbol,'.'))};if(solve(v,initial(v))!==null)return null}
  const path=solve(l,start);let pushes=0,rewrites=0,a=start;for(const action of path){const b=step(l,a,action);if(!b)return null;if('m'in action){if(JSON.stringify(a.boxes)!==JSON.stringify(b.boxes))pushes++}else rewrites++;a=b}
- if(!won(l,a)||steps<(kind==='switch-phase'?8:kind==='frozen-gate'?3:4))return null;
+ if(!won(l,a)||steps<(kind==='switch-phase'?7:kind==='frozen-gate'?3:4))return null;
  const mechanisms=({'phase-gate':['相位穿透','实体恢复'],'frozen-gate':['条件法则','时间冻结'],'gravity-shaft':['全局重力反转','垂直通道'],'ghost-reversal':['虚体触发重力反转','实体恢复'],'switch-phase':['箱体压板','门控','时间冻结','相位穿透']})[kind];
  return {steps,required,lawCount:(l.laws||[]).length,traps,paths,states:states.length,pushes,rewrites,mechanisms,grammar:kind};
 }
@@ -98,7 +98,7 @@ function generateGrammarPuzzle(seed,limit=48,targetRule=null){
  if(!Number.isInteger(seed)||!Number.isInteger(limit)||limit<1||limit>500||targetRule!==null&&!['g','p','f'].includes(targetRule))throw Error('invalid grammar search settings');
  const r=rng(seed),pool=[],seen=new Set();
  for(let i=0;i<limit;i++){const kind=GRAMMAR_FAMILIES[(i+(seed>>>0)%GRAMMAR_FAMILIES.length)%GRAMMAR_FAMILIES.length],variant=(r()*4294967296)>>>0,c=grammarBuild(kind,variant),m=grammarAnalyze(c.level,kind);if(!m||targetRule&&!m.required.includes(targetRule))continue;const sig=c.level.map.join('')+'|'+c.level.allow.join('')+'|'+JSON.stringify(c.level.laws);if(seen.has(sig))continue;seen.add(sig);pool.push({...c.level,name:'语法谜题 · '+kind,desc:'组合式机制语法生成；核心法则和关键机关均通过消融验证。',metrics:{...m,seed,evaluations:i+1}})}
- if(!pool.length)return null;const chosen=pool[Math.floor(r()*pool.length)];chosen.metrics.validCandidates=pool.length;return chosen;
+ if(!pool.length)return null;const available=GRAMMAR_FAMILIES.filter(kind=>pool.some(c=>c.metrics.grammar===kind));const family=available[Math.floor(r()*available.length)],choices=pool.filter(c=>c.metrics.grammar===family),chosen=choices[Math.floor(r()*choices.length)];chosen.metrics.validCandidates=pool.length;chosen.metrics.validFamilies=available.length;return chosen;
 }
 function generateUI(){let seed=(Math.random()*4294967296)>>>0;let l=generateGrammarPuzzle(seed,64);if(!l){document.getElementById('msg').textContent='本次语法搜索未找到通过消融验证的谜题，请重试。';return}L.push(l);let sel=document.getElementById('levels');sel.add(new Option(l.name,L.length-1));i=L.length-1;reset()}
 
